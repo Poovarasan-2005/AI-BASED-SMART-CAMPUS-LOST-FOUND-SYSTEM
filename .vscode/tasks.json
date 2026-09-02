@@ -1,0 +1,57 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "1. Start Backend Server (FastAPI)",
+      "type": "shell",
+      "command": "python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000 --reload",
+      "options": {
+        "env": {
+          "PYTHONPATH": "${workspaceFolder}/backend"
+        }
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new",
+        "group": "backend"
+      }
+    },
+    {
+      "label": "2. Start Frontend Server (Vite React)",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new",
+        "group": "frontend"
+      }
+    },
+    {
+      "label": "3. Seed Demo Data",
+      "type": "shell",
+      "command": "python seed_demo.py",
+      "options": {
+        "env": {
+          "PYTHONPATH": "${workspaceFolder}/backend"
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "4. Run Pytest Security Tests",
+      "type": "shell",
+      "command": "pytest tests/test_security_and_flow.py tests/test_mobile_otp_and_conversation.py -v",
+      "options": {
+        "env": {
+          "PYTHONPATH": "${workspaceFolder}/backend"
+        }
+      },
+      "problemMatcher": []
+    }
+  ]
+}
