@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     SESSION_SECRET: str = os.getenv("SESSION_SECRET", "super_secret_session_key_2026")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
     
     # Email settings
     EMAIL_HOST: str = os.getenv("EMAIL_HOST", "")

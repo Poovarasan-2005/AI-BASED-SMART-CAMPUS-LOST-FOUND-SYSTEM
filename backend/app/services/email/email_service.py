@@ -70,7 +70,7 @@ class EmailService:
     @classmethod
     async def send_verification_email(cls, to_email: str, token: str, user_role: str):
         subject = "Smart Campus Lost & Found - Email Verification"
-        verify_url = f"http://localhost:5173/email-verification?token={token}&role={user_role.lower()}"
+        verify_url = f"{settings.FRONTEND_URL}/email-verification?token={token}&role={user_role.lower()}"
         body_text = (
             f"Welcome to Smart Campus Lost & Found System!\n\n"
             f"Please verify your email address by opening the following link:\n"
@@ -110,7 +110,7 @@ class EmailService:
         Sends complete verification request directly to the email of the person who reported the item/person as found.
         """
         subject = "New Verification Request – Smart Campus Lost & Found"
-        conv_url = f"http://localhost:5173/found/conversations/{conversation_id}"
+        conv_url = f"{settings.FRONTEND_URL}/found/conversations/{conversation_id}"
         req_timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
 
         body_text = (
@@ -168,7 +168,7 @@ class EmailService:
         """
         subject = f"New Reply on Verification Request – Smart Campus Lost & Found"
         portal_path = "lost" if recipient_role == "LOST_USER" else "found"
-        conv_url = f"http://localhost:5173/{portal_path}/conversations/{conversation_id}"
+        conv_url = f"{settings.FRONTEND_URL}/{portal_path}/conversations/{conversation_id}"
 
         body_text = (
             f"Hello,\n\n"
@@ -196,7 +196,7 @@ class EmailService:
         body_text = (
             f"A Found Person has reported an item that potentially matches your reported lost item: '{item_name}'.\n\n"
             f"Verification Request Code: {request_id}\n\n"
-            f"Please log in to your Lost User dashboard at http://localhost:5173/lost/login to review this request and perform ownership verification.\n\n"
+            f"Please log in to your Lost User dashboard at {settings.FRONTEND_URL}/lost/login to review this request and perform ownership verification.\n\n"
             f"If you did not lose this item or do not recognize it, you can reject the request directly from your dashboard."
         )
         return await cls.send_email(to_email, subject, body_text)

@@ -1,8 +1,44 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { apiFetch } from '../../services/api';
-import { ShieldCheck, Users, FileText, AlertTriangle, Activity, MapPin, PieChart, Lock, Unlock, X, CheckCircle2, Search, ExternalLink } from 'lucide-react';
+import PortalLayout from '../../components/PortalLayout';
+import {
+  ShieldCheck,
+  Users,
+  FileText,
+  AlertTriangle,
+  Activity,
+  MapPin,
+  PieChart,
+  Lock,
+  Unlock,
+  X,
+  CheckCircle2,
+  Search,
+  ExternalLink,
+  Settings,
+  History,
+  Sparkles,
+  Save
+} from 'lucide-react';
 
-export default function AdminDashboard() {
+export default function AdminDashboard({ view = 'dashboard' }) {
+  const location = useLocation();
+
+  // Derive initial tab from prop or URL
+  const getTabFromPath = () => {
+    const path = location.pathname;
+    if (path.includes('/admin/users')) return 'users';
+    if (path.includes('/admin/items')) return 'items';
+    if (path.includes('/admin/matches')) return 'matches';
+    if (path.includes('/admin/verification-requests')) return 'verifications';
+    if (path.includes('/admin/reports')) return 'reports';
+    if (path.includes('/admin/audit-logs')) return 'logs';
+    if (path.includes('/admin/settings')) return 'settings';
+    return 'dashboard';
+  };
+
+  const [activeTab, setActiveTab] = useState(getTabFromPath());
   const [metrics, setMetrics] = useState(null);
   const [analytics, setAnalytics] = useState(null);
   const [usersList, setUsersList] = useState([]);
@@ -10,11 +46,22 @@ export default function AdminDashboard() {
   const [recoveredItems, setRecoveredItems] = useState([]);
   const [allLostReports, setAllLostReports] = useState([]);
   const [allFoundReports, setAllFoundReports] = useState([]);
+  const [verificationRequests, setVerificationRequests] = useState([]);
+  const [platformSettings, setPlatformSettings] = useState({
+    ai_matching_threshold: 70,
+    max_upload_size_mb: 5,
+    auto_close_days: 30,
+    require_email_verification: true
+  });
+  const [settingsStatus, setSettingsStatus] = useState('');
 
-  const [activeTab, setActiveTab] = useState('analytics'); // 'analytics', 'users', 'logs'
-  const [activeModal, setActiveModal] = useState(null); // 'recovered', 'lost', 'found', null
+  const [activeModal, setActiveModal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    setActiveTab(getTabFromPath());
+  }, [location.pathname]);
 
   useEffect(() => {
     fetchAdminData();
@@ -42,6 +89,14 @@ export default function AdminDashboard() {
 
       const foundData = await apiFetch('/admin/all-found-reports');
       setAllFoundReports(foundData.found_reports || []);
+
+      const vrData = await apiFetch('/admin/verification-requests');
+      setVerificationRequests(vrData.verification_requests || []);
+
+      const setRes = await apiFetch('/admin/settings');
+      if (setRes.settings) {
+        setPlatformSettings(setRes.settings);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -62,194 +117,170 @@ export default function AdminDashboard() {
     }
   };
 
-  if (loading) return <p style={{ padding: '2rem' }}>Loading Admin Moderation & Analytics Portal...</p>;
+  const handleModerateItem = async (itemId, itemType, action) => {
+    try {
+      await apiFetch('/admin/moderate-item', {
+        method: 'POST',
+        body: JSON.stringify({ item_id: itemId, item_type: itemType, action })
+      });
+      alert(`Item ${action}ed successfully.`);
+      fetchAdminData();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
 
-  // Recovery Rate Gauge Calculations
-  const rateVal = metrics?.raw_recovery_rate || 0;
-  const strokeDashoffset = 283 - (283 * rateVal) / 100;
+  const handleSaveSettings = async (e) => {
+    e.preventDefault();
+    setSettingsStatus('');
+    try {
+      await apiFetch('/admin/settings', {
+        method: 'PUT',
+        body: JSON.stringify(platformSettings)
+      });
+      setSettingsStatus('Settings updated successfully!');
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  if (loading) {
+    return (
+      <PortalLayout role="ADMIN" title="Admin Portal" subtitle="Loading administrative records...">
+        <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+          Authenticating administrator privileges & fetching campus datasets...
+        </div>
+      </PortalLayout>
+    );
+  }
 
   return (
-    <div>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <div>
-          <h1 style={{ fontSize: '1.75rem', fontWeight: 800 }}>Admin Moderation & Security Dashboard</h1>
-          <p style={{ color: 'var(--text-muted)' }}>Real-time campus location analytics, user management, and security audit logs</p>
-        </div>
-        <span className="badge badge-matched" style={{ fontSize: '0.85rem', padding: '0.4rem 0.9rem' }}>
-          ADMIN SESSION
-        </span>
-      </div>
-
-      {/* Metric Cards - Interactive & Clickable */}
+    <PortalLayout
+      role="ADMIN"
+      title="Admin Moderation & Security Dashboard"
+      subtitle="Real-time campus location analytics, user management, item moderation, and security audit logs"
+    >
+      {/* Metric Cards - Interactive & Clickable (Section 21) */}
       {metrics && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
-          
-          {/* CARD 1: RECOVERY RATE */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
           <div
             onClick={() => setActiveModal('recovered')}
             className="glass-card"
-            style={{ padding: '1.25rem', cursor: 'pointer', transition: 'all 0.2s', border: activeModal === 'recovered' ? '2px solid #34d399' : '1px solid var(--border-color)' }}
+            style={{ padding: '1.25rem', cursor: 'pointer', border: activeModal === 'recovered' ? '2px solid #34d399' : '1px solid var(--border-color)' }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Recovery Rate</div>
-              <span style={{ fontSize: '0.7rem', color: '#34d399', background: 'rgba(52,211,153,0.1)', padding: '0.1rem 0.4rem', borderRadius: 4 }}>Click details</span>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Recovery Rate</div>
+              <span style={{ fontSize: '0.68rem', color: '#34d399', background: 'rgba(52,211,153,0.1)', padding: '0.1rem 0.4rem', borderRadius: 4 }}>Details</span>
             </div>
-            <div style={{ fontSize: '2rem', fontWeight: 800, color: '#34d399', marginTop: '0.25rem' }}>{metrics.recovery_rate}</div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#34d399', marginTop: '0.25rem' }}>{metrics.recovery_rate}</div>
           </div>
 
-          {/* CARD 2: RECOVERED ITEMS */}
-          <div
-            onClick={() => setActiveModal('recovered')}
-            className="glass-card"
-            style={{ padding: '1.25rem', cursor: 'pointer', transition: 'all 0.2s', border: activeModal === 'recovered' ? '2px solid #22d3ee' : '1px solid var(--border-color)' }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Recovered Items</div>
-              <span style={{ fontSize: '0.7rem', color: '#22d3ee', background: 'rgba(34,211,238,0.1)', padding: '0.1rem 0.4rem', borderRadius: 4 }}>Click details</span>
-            </div>
-            <div style={{ fontSize: '2rem', fontWeight: 800, color: '#22d3ee', marginTop: '0.25rem' }}>{metrics.recovered_items}</div>
-          </div>
-
-          {/* CARD 3: TOTAL LOST REPORTS */}
           <div
             onClick={() => setActiveModal('lost')}
             className="glass-card"
-            style={{ padding: '1.25rem', cursor: 'pointer', transition: 'all 0.2s', border: activeModal === 'lost' ? '2px solid #f43f5e' : '1px solid var(--border-color)' }}
+            style={{ padding: '1.25rem', cursor: 'pointer', border: activeModal === 'lost' ? '2px solid #f43f5e' : '1px solid var(--border-color)' }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Lost Reports</div>
-              <span style={{ fontSize: '0.7rem', color: '#f43f5e', background: 'rgba(244,63,94,0.1)', padding: '0.1rem 0.4rem', borderRadius: 4 }}>Click details</span>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Lost Reports</div>
+              <span style={{ fontSize: '0.68rem', color: '#f43f5e', background: 'rgba(244,63,94,0.1)', padding: '0.1rem 0.4rem', borderRadius: 4 }}>{allLostReports.length}</span>
             </div>
-            <div style={{ fontSize: '2rem', fontWeight: 800, color: '#f43f5e', marginTop: '0.25rem' }}>{metrics.total_lost_reports}</div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f43f5e', marginTop: '0.25rem' }}>{metrics.total_lost_reports}</div>
           </div>
 
-          {/* CARD 4: TOTAL FOUND REPORTS */}
           <div
             onClick={() => setActiveModal('found')}
             className="glass-card"
-            style={{ padding: '1.25rem', cursor: 'pointer', transition: 'all 0.2s', border: activeModal === 'found' ? '2px solid #10b981' : '1px solid var(--border-color)' }}
+            style={{ padding: '1.25rem', cursor: 'pointer', border: activeModal === 'found' ? '2px solid #10b981' : '1px solid var(--border-color)' }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Found Reports</div>
-              <span style={{ fontSize: '0.7rem', color: '#10b981', background: 'rgba(16,185,129,0.1)', padding: '0.1rem 0.4rem', borderRadius: 4 }}>Click details</span>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Found Reports</div>
+              <span style={{ fontSize: '0.68rem', color: '#10b981', background: 'rgba(16,185,129,0.1)', padding: '0.1rem 0.4rem', borderRadius: 4 }}>{allFoundReports.length}</span>
             </div>
-            <div style={{ fontSize: '2rem', fontWeight: 800, color: '#10b981', marginTop: '0.25rem' }}>{metrics.total_found_reports}</div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#10b981', marginTop: '0.25rem' }}>{metrics.total_found_reports}</div>
+          </div>
+
+          <div
+            onClick={() => setActiveTab('users')}
+            className="glass-card"
+            style={{ padding: '1.25rem', cursor: 'pointer' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Campus Users</div>
+              <span style={{ fontSize: '0.68rem', color: '#818cf8', background: 'rgba(129,140,248,0.1)', padding: '0.1rem 0.4rem', borderRadius: 4 }}>Manage</span>
+            </div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#818cf8', marginTop: '0.25rem' }}>{metrics.total_users}</div>
+          </div>
+
+          <div
+            onClick={() => setActiveTab('verifications')}
+            className="glass-card"
+            style={{ padding: '1.25rem', cursor: 'pointer' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pending Verifications</div>
+              <span style={{ fontSize: '0.68rem', color: '#f59e0b', background: 'rgba(245,158,11,0.1)', padding: '0.1rem 0.4rem', borderRadius: 4 }}>Track</span>
+            </div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f59e0b', marginTop: '0.25rem' }}>{metrics.pending_verifications}</div>
           </div>
         </div>
       )}
 
-      {/* RECOVERY RATE CHART STYLE VISUALIZER */}
-      <div className="glass-card" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
-        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <PieChart style={{ color: '#34d399', width: 20, height: 20 }} /> Recovery Rate Visual Analytics Chart
-        </h3>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '2rem', alignItems: 'center' }}>
-          {/* Radial Donut Progress Ring */}
-          <div style={{ position: 'relative', width: 150, height: 150, margin: '0 auto' }}>
-            <svg width="150" height="150" viewBox="0 0 100 100">
-              <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="10" />
-              <circle
-                cx="50"
-                cy="50"
-                r="45"
-                fill="none"
-                stroke="url(#gradientRing)"
-                strokeWidth="10"
-                strokeDasharray="283"
-                strokeDashoffset={strokeDashoffset}
-                strokeLinecap="round"
-                transform="rotate(-90 50 50)"
-                style={{ transition: 'stroke-dashoffset 1s ease-in-out' }}
-              />
-              <defs>
-                <linearGradient id="gradientRing" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#34d399" />
-                  <stop offset="100%" stopColor="#22d3ee" />
-                </linearGradient>
-              </defs>
-            </svg>
-            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#34d399' }}>{metrics?.recovery_rate || '0%'}</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>RECOVERY RATE</div>
-            </div>
-          </div>
-
-          {/* Comparative Progress Bars */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.25rem' }}>
-                <span>Total Lost Items Reported</span>
-                <strong style={{ color: '#f43f5e' }}>{metrics?.total_lost_reports || 0}</strong>
-              </div>
-              <div style={{ height: 8, background: 'rgba(255,255,255,0.05)', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{ width: '100%', height: '100%', background: '#f43f5e' }}></div>
-              </div>
-            </div>
-
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.25rem' }}>
-                <span>Total Found Items Reported</span>
-                <strong style={{ color: '#10b981' }}>{metrics?.total_found_reports || 0}</strong>
-              </div>
-              <div style={{ height: 8, background: 'rgba(255,255,255,0.05)', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{ width: `${Math.min(100, ((metrics?.total_found_reports || 0) / Math.max(1, metrics?.total_lost_reports || 1)) * 100)}%`, height: '100%', background: '#10b981' }}></div>
-              </div>
-            </div>
-
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.25rem' }}>
-                <span>Successfully Recovered & Returned Items</span>
-                <strong style={{ color: '#22d3ee' }}>{metrics?.recovered_items || 0} ({metrics?.recovery_rate})</strong>
-              </div>
-              <div style={{ height: 8, background: 'rgba(255,255,255,0.05)', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{ width: `${rateVal}%`, height: '100%', background: 'linear-gradient(90deg, #34d399, #22d3ee)' }}></div>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Tab Navigation Controls */}
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', overflowX: 'auto', paddingBottom: '0.25rem' }}>
+        {[
+          { id: 'dashboard', label: 'Dashboard & Analytics' },
+          { id: 'users', label: `Users (${usersList.length})` },
+          { id: 'items', label: `Item Moderation (${allLostReports.length + allFoundReports.length})` },
+          { id: 'verifications', label: `Verification Requests (${verificationRequests.length})` },
+          { id: 'logs', label: `Security Logs (${auditLogs.length})` },
+          { id: 'settings', label: 'Settings' }
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className="btn"
+            style={{
+              padding: '0.5rem 1rem',
+              fontSize: '0.85rem',
+              background: activeTab === tab.id ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.03)',
+              color: activeTab === tab.id ? '#818cf8' : 'var(--text-muted)',
+              border: activeTab === tab.id ? '1px solid #6366f1' : '1px solid var(--border-color)',
+              borderRadius: 8
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      {/* Tab Navigation */}
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
-        <button onClick={() => setActiveTab('analytics')} className={`btn ${activeTab === 'analytics' ? 'btn-primary' : 'btn-outline'}`} style={{ padding: '0.4rem 1rem', fontSize: '0.85rem' }}>
-          <MapPin style={{ width: 16, height: 16 }} /> Location & Category Analytics
-        </button>
-        <button onClick={() => setActiveTab('users')} className={`btn ${activeTab === 'users' ? 'btn-primary' : 'btn-outline'}`} style={{ padding: '0.4rem 1rem', fontSize: '0.85rem' }}>
-          <Users style={{ width: 16, height: 16 }} /> User Moderation ({usersList.length})
-        </button>
-        <button onClick={() => setActiveTab('logs')} className={`btn ${activeTab === 'logs' ? 'btn-primary' : 'btn-outline'}`} style={{ padding: '0.4rem 1rem', fontSize: '0.85rem' }}>
-          <Activity style={{ width: 16, height: 16 }} /> Security Audit Logs ({auditLogs.length})
-        </button>
-      </div>
-
-      {/* TAB 1: LOCATION & CATEGORY ANALYTICS */}
-      {activeTab === 'analytics' && analytics && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+      {/* VIEW: DASHBOARD & ANALYTICS */}
+      {activeTab === 'dashboard' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
+          {/* Top Lost Locations */}
           <div className="glass-card" style={{ padding: '1.5rem' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <MapPin style={{ color: '#f43f5e', width: 20, height: 20 }} /> Most Common Lost Locations
+              <MapPin style={{ width: 18, height: 18, color: '#f43f5e' }} /> Most Common Lost Locations
             </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {analytics.most_common_lost_locations.map((item, idx) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', background: 'rgba(255,255,255,0.02)', borderRadius: 6 }}>
-                  <span style={{ fontWeight: 600 }}>{item.location}</span>
-                  <span className="badge badge-active">{item.count} Reports</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+              {analytics?.most_common_lost_locations?.map((loc, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0.75rem', background: 'rgba(255,255,255,0.02)', borderRadius: 6, fontSize: '0.88rem' }}>
+                  <span>{loc.location}</span>
+                  <strong style={{ color: '#38bdf8' }}>{loc.count} reports</strong>
                 </div>
               ))}
             </div>
           </div>
 
+          {/* Category Distribution */}
           <div className="glass-card" style={{ padding: '1.5rem' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <PieChart style={{ color: '#06b6d4', width: 20, height: 20 }} /> Item Category Distribution
+              <PieChart style={{ width: 18, height: 18, color: '#06b6d4' }} /> Category Distribution
             </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {analytics.category_distribution.map((cat, idx) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', background: 'rgba(255,255,255,0.02)', borderRadius: 6 }}>
-                  <span style={{ fontWeight: 600 }}>{cat.category}</span>
-                  <span className="badge badge-returned">{cat.count} Items</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+              {analytics?.category_distribution?.map((cat, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0.75rem', background: 'rgba(255,255,255,0.02)', borderRadius: 6, fontSize: '0.88rem' }}>
+                  <span>{cat.category}</span>
+                  <strong style={{ color: '#34d399' }}>{cat.count} items</strong>
                 </div>
               ))}
             </div>
@@ -257,36 +288,47 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* TAB 2: USER MODERATION */}
+      {/* VIEW: USER MANAGEMENT */}
       {activeTab === 'users' && (
         <div className="glass-card" style={{ padding: '1.5rem' }}>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem' }}>User Accounts & Role Permissions</h3>
+          <h3 style={{ fontSize: '1.2rem', fontWeight: 800, marginBottom: '1rem' }}>Campus User Management</h3>
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
-                  <th style={{ padding: '0.75rem' }}>User</th>
+                  <th style={{ padding: '0.75rem' }}>Full Name</th>
                   <th style={{ padding: '0.75rem' }}>Email</th>
                   <th style={{ padding: '0.75rem' }}>Role</th>
+                  <th style={{ padding: '0.75rem' }}>Department</th>
                   <th style={{ padding: '0.75rem' }}>Status</th>
                   <th style={{ padding: '0.75rem' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {usersList.map((u) => (
-                  <tr key={u.uuid} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                    <td style={{ padding: '0.75rem', fontWeight: 600 }}>{u.full_name}</td>
-                    <td style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>{u.email}</td>
-                    <td style={{ padding: '0.75rem' }}><span className="badge badge-matched">{u.role}</span></td>
-                    <td style={{ padding: '0.75rem' }}><span className={`badge ${u.account_status === 'ACTIVE' ? 'badge-active' : 'badge-cancelled'}`}>{u.account_status}</span></td>
+                  <tr key={u.uuid} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '0.75rem', fontWeight: 700 }}>{u.full_name}</td>
+                    <td style={{ padding: '0.75rem' }}>{u.email}</td>
+                    <td style={{ padding: '0.75rem' }}>
+                      <span className="badge badge-matched">{u.role}</span>
+                    </td>
+                    <td style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>{u.department || 'N/A'}</td>
+                    <td style={{ padding: '0.75rem' }}>
+                      <span className={`badge ${u.account_status === 'SUSPENDED' ? 'badge-cancelled' : 'badge-active'}`}>
+                        {u.account_status || 'ACTIVE'}
+                      </span>
+                    </td>
                     <td style={{ padding: '0.75rem' }}>
                       {u.role !== 'ADMIN' && (
                         <button
                           onClick={() => handleToggleSuspend(u.uuid, u.account_status)}
-                          className="btn btn-outline"
-                          style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', color: u.account_status === 'SUSPENDED' ? '#34d399' : '#f87171' }}
+                          className="btn btn-outline btn-sm"
+                          style={{
+                            color: u.account_status === 'SUSPENDED' ? '#34d399' : '#f87171',
+                            borderColor: u.account_status === 'SUSPENDED' ? '#34d399' : '#f87171'
+                          }}
                         >
-                          {u.account_status === 'SUSPENDED' ? <Unlock style={{ width: 14, height: 14 }} /> : <Lock style={{ width: 14, height: 14 }} />}
+                          {u.account_status === 'SUSPENDED' ? <Unlock style={{ width: 12, height: 12 }} /> : <Lock style={{ width: 12, height: 12 }} />}
                           {u.account_status === 'SUSPENDED' ? 'Activate' : 'Suspend'}
                         </button>
                       )}
@@ -299,29 +341,112 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* TAB 3: SECURITY AUDIT LOGS */}
-      {activeTab === 'logs' && (
+      {/* VIEW: ITEM MODERATION */}
+      {activeTab === 'items' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          {/* Lost Reports */}
+          <div className="glass-card" style={{ padding: '1.5rem' }}>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: '1rem', color: '#f43f5e' }}>
+              Reported Lost Items ({allLostReports.length})
+            </h3>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                    <th style={{ padding: '0.65rem' }}>Item Name</th>
+                    <th style={{ padding: '0.65rem' }}>Category</th>
+                    <th style={{ padding: '0.65rem' }}>Location</th>
+                    <th style={{ padding: '0.65rem' }}>Status</th>
+                    <th style={{ padding: '0.65rem' }}>Moderation</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allLostReports.map(item => (
+                    <tr key={item.uuid} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                      <td style={{ padding: '0.65rem', fontWeight: 700 }}>{item.item_name}</td>
+                      <td style={{ padding: '0.65rem', color: 'var(--text-muted)' }}>{item.category}</td>
+                      <td style={{ padding: '0.65rem' }}>{item.lost_location}</td>
+                      <td style={{ padding: '0.65rem' }}>
+                        <span className={`badge ${item.status === 'ACTIVE' ? 'badge-active' : 'badge-matched'}`}>{item.status}</span>
+                      </td>
+                      <td style={{ padding: '0.65rem', display: 'flex', gap: '0.35rem' }}>
+                        <button onClick={() => handleModerateItem(item.uuid, 'LOST', 'APPROVE')} className="btn btn-outline btn-sm" style={{ color: '#34d399' }}>Approve</button>
+                        <button onClick={() => handleModerateItem(item.uuid, 'LOST', 'FLAG')} className="btn btn-outline btn-sm" style={{ color: '#fbbf24' }}>Flag</button>
+                        <button onClick={() => handleModerateItem(item.uuid, 'LOST', 'CANCEL')} className="btn btn-outline btn-sm" style={{ color: '#f87171' }}>Remove</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Found Reports */}
+          <div className="glass-card" style={{ padding: '1.5rem' }}>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: '1rem', color: '#10b981' }}>
+              Reported Found Items ({allFoundReports.length})
+            </h3>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                    <th style={{ padding: '0.65rem' }}>Item Name</th>
+                    <th style={{ padding: '0.65rem' }}>Category</th>
+                    <th style={{ padding: '0.65rem' }}>Location</th>
+                    <th style={{ padding: '0.65rem' }}>Status</th>
+                    <th style={{ padding: '0.65rem' }}>Moderation</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allFoundReports.map(item => (
+                    <tr key={item.uuid} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                      <td style={{ padding: '0.65rem', fontWeight: 700 }}>{item.item_name}</td>
+                      <td style={{ padding: '0.65rem', color: 'var(--text-muted)' }}>{item.category}</td>
+                      <td style={{ padding: '0.65rem' }}>{item.found_location}</td>
+                      <td style={{ padding: '0.65rem' }}>
+                        <span className={`badge ${item.status === 'ACTIVE' ? 'badge-active' : 'badge-matched'}`}>{item.status}</span>
+                      </td>
+                      <td style={{ padding: '0.65rem', display: 'flex', gap: '0.35rem' }}>
+                        <button onClick={() => handleModerateItem(item.uuid, 'FOUND', 'APPROVE')} className="btn btn-outline btn-sm" style={{ color: '#34d399' }}>Approve</button>
+                        <button onClick={() => handleModerateItem(item.uuid, 'FOUND', 'FLAG')} className="btn btn-outline btn-sm" style={{ color: '#fbbf24' }}>Flag</button>
+                        <button onClick={() => handleModerateItem(item.uuid, 'FOUND', 'CANCEL')} className="btn btn-outline btn-sm" style={{ color: '#f87171' }}>Remove</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW: VERIFICATION REQUESTS */}
+      {activeTab === 'verifications' && (
         <div className="glass-card" style={{ padding: '1.5rem' }}>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem' }}>Security Audit Log Trail</h3>
+          <h3 style={{ fontSize: '1.2rem', fontWeight: 800, marginBottom: '1rem' }}>Campus Verification Requests</h3>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
-                  <th style={{ padding: '0.6rem' }}>Timestamp</th>
-                  <th style={{ padding: '0.6rem' }}>Action</th>
-                  <th style={{ padding: '0.6rem' }}>User ID</th>
-                  <th style={{ padding: '0.6rem' }}>Resource</th>
-                  <th style={{ padding: '0.6rem' }}>IP Address</th>
+                  <th style={{ padding: '0.75rem' }}>Request Code</th>
+                  <th style={{ padding: '0.75rem' }}>Requester</th>
+                  <th style={{ padding: '0.75rem' }}>Email</th>
+                  <th style={{ padding: '0.75rem' }}>Description</th>
+                  <th style={{ padding: '0.75rem' }}>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {auditLogs.map((log) => (
-                  <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
-                    <td style={{ padding: '0.6rem', color: 'var(--text-dim)' }}>{new Date(log.created_at).toLocaleString()}</td>
-                    <td style={{ padding: '0.6rem', fontWeight: 700, color: '#22d3ee' }}>{log.action}</td>
-                    <td style={{ padding: '0.6rem', color: 'var(--text-muted)' }}>{log.user_id}</td>
-                    <td style={{ padding: '0.6rem' }}>{log.resource_type}:{log.resource_id}</td>
-                    <td style={{ padding: '0.6rem', color: 'var(--text-dim)' }}>{log.ip_address}</td>
+                {verificationRequests.map(vr => (
+                  <tr key={vr.uuid} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '0.75rem', fontWeight: 800, color: '#38bdf8' }}>{vr.request_code}</td>
+                    <td style={{ padding: '0.75rem' }}>{vr.requester_name}</td>
+                    <td style={{ padding: '0.75rem', color: 'var(--text-muted)' }}>{vr.requester_email}</td>
+                    <td style={{ padding: '0.75rem', maxWidth: 260, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                      {vr.description}
+                    </td>
+                    <td style={{ padding: '0.75rem' }}>
+                      <span className="badge badge-active">{vr.status || 'DELIVERED'}</span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -330,54 +455,140 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* MODAL 1: RECOVERED ITEMS & FOUND DETAILS */}
+      {/* VIEW: SECURITY AUDIT LOGS */}
+      {activeTab === 'logs' && (
+        <div className="glass-card" style={{ padding: '1.5rem' }}>
+          <h3 style={{ fontSize: '1.2rem', fontWeight: 800, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <History style={{ width: 18, height: 18, color: '#f59e0b' }} /> Security Audit Logs (Append-Only)
+          </h3>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.82rem' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                  <th style={{ padding: '0.65rem' }}>Timestamp</th>
+                  <th style={{ padding: '0.65rem' }}>Action</th>
+                  <th style={{ padding: '0.65rem' }}>User ID</th>
+                  <th style={{ padding: '0.65rem' }}>Resource</th>
+                  <th style={{ padding: '0.65rem' }}>IP Address</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditLogs.map((log, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                    <td style={{ padding: '0.65rem', color: 'var(--text-dim)' }}>
+                      {log.created_at ? new Date(log.created_at).toLocaleString() : 'N/A'}
+                    </td>
+                    <td style={{ padding: '0.65rem', fontWeight: 700, color: '#38bdf8' }}>{log.action}</td>
+                    <td style={{ padding: '0.65rem' }}>{log.user_id}</td>
+                    <td style={{ padding: '0.65rem' }}>{log.resource_type}</td>
+                    <td style={{ padding: '0.65rem', color: 'var(--text-dim)' }}>{log.ip_address}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW: PLATFORM SETTINGS */}
+      {activeTab === 'settings' && (
+        <div className="glass-card" style={{ padding: '2rem', maxWidth: 640 }}>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Settings style={{ width: 20, height: 20, color: '#818cf8' }} /> Platform Governance Settings
+          </h3>
+
+          {settingsStatus && (
+            <div style={{ background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#34d399', padding: '0.75rem', borderRadius: 6, marginBottom: '1.25rem', fontSize: '0.88rem' }}>
+              {settingsStatus}
+            </div>
+          )}
+
+          <form onSubmit={handleSaveSettings}>
+            <div className="form-group">
+              <label>Multimodal AI Match Threshold (Minimum Confidence %)</label>
+              <input
+                type="number"
+                min="30"
+                max="95"
+                className="form-control"
+                value={platformSettings.ai_matching_threshold}
+                onChange={e => setPlatformSettings({ ...platformSettings, ai_matching_threshold: Number(e.target.value) })}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Maximum Upload File Size (MB)</label>
+              <input
+                type="number"
+                min="1"
+                max="25"
+                className="form-control"
+                value={platformSettings.max_upload_size_mb}
+                onChange={e => setPlatformSettings({ ...platformSettings, max_upload_size_mb: Number(e.target.value) })}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Auto-Close Inactive Items (Days)</label>
+              <input
+                type="number"
+                min="7"
+                max="180"
+                className="form-control"
+                value={platformSettings.auto_close_days}
+                onChange={e => setPlatformSettings({ ...platformSettings, auto_close_days: Number(e.target.value) })}
+              />
+            </div>
+
+            <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '0.75rem' }}>
+              <Save style={{ width: 16, height: 16 }} /> Save Platform Settings
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* MODAL 1: RECOVERED ITEMS */}
       {activeModal === 'recovered' && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div className="glass-card" style={{ width: '90%', maxWidth: 750, maxHeight: '85vh', overflowY: 'auto', padding: '2rem' }}>
+          <div className="glass-card" style={{ width: '90%', maxWidth: 850, maxHeight: '85vh', overflowY: 'auto', padding: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
               <div>
                 <h3 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#34d399', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <CheckCircle2 style={{ width: 22, height: 22 }} /> Recovered Items & Found Details ({recoveredItems.length})
+                  <CheckCircle2 style={{ width: 22, height: 22 }} /> Recovered Campus Items ({recoveredItems.length})
                 </h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Verified matches completed with single-use QR handover</p>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Digital receipts and verification audit records for successfully returned items</p>
               </div>
               <button onClick={() => setActiveModal(null)} className="btn btn-outline" style={{ padding: '0.3rem 0.6rem' }}>
                 <X style={{ width: 18, height: 18 }} />
               </button>
             </div>
 
-            {recoveredItems.length === 0 ? (
-              <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>No recovered items logged yet.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {recoveredItems.map((rec) => (
-                  <div key={rec.id} style={{ background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(52,211,153,0.3)', padding: '1.25rem', borderRadius: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                      <span className="badge badge-returned">{rec.status}</span>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>Recovery ID: {rec.recovery_id}</span>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '0.85rem' }}>
-                      <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', borderRadius: 6 }}>
-                        <h5 style={{ fontWeight: 700, color: '#34d399', marginBottom: '0.25rem' }}>Found Item Details</h5>
-                        <div>Item Name: <strong>{rec.found_report?.item_name || 'Found Item'}</strong></div>
-                        <div>Found Location: {rec.found_report?.found_location}</div>
-                        <div>Category: {rec.found_report?.category}</div>
-                        <div>Finder Name: {rec.found_user}</div>
-                      </div>
-
-                      <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', borderRadius: 6 }}>
-                        <h5 style={{ fontWeight: 700, color: '#22d3ee', marginBottom: '0.25rem' }}>Owner / Lost Details</h5>
-                        <div>Item Name: <strong>{rec.lost_report?.item_name || 'Lost Item'}</strong></div>
-                        <div>Lost Location: {rec.lost_report?.lost_location}</div>
-                        <div>Owner Name: {rec.lost_user}</div>
-                        <div>Verified OTP & Secret Check: Passed</div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                    <th style={{ padding: '0.6rem' }}>Item Name</th>
+                    <th style={{ padding: '0.6rem' }}>Owner</th>
+                    <th style={{ padding: '0.6rem' }}>Finder</th>
+                    <th style={{ padding: '0.6rem' }}>Handover Method</th>
+                    <th style={{ padding: '0.6rem' }}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recoveredItems.map((rec) => (
+                    <tr key={rec.uuid} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                      <td style={{ padding: '0.6rem', fontWeight: 700 }}>{rec.lost_report?.item_name || rec.found_report?.item_name || 'Campus Item'}</td>
+                      <td style={{ padding: '0.6rem' }}>{rec.lost_user}</td>
+                      <td style={{ padding: '0.6rem' }}>{rec.found_user}</td>
+                      <td style={{ padding: '0.6rem', color: '#38bdf8' }}>{rec.recovery_method || 'QR Handover'}</td>
+                      <td style={{ padding: '0.6rem' }}>
+                        <span className="badge badge-active">{rec.status}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -391,36 +602,28 @@ export default function AdminDashboard() {
                 <h3 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#f43f5e', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <FileText style={{ width: 22, height: 22 }} /> Campus Lost Reports ({allLostReports.length})
                 </h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Complete registry of lost items submitted by campus members</p>
               </div>
               <button onClick={() => setActiveModal(null)} className="btn btn-outline" style={{ padding: '0.3rem 0.6rem' }}>
                 <X style={{ width: 18, height: 18 }} />
               </button>
             </div>
-
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
                     <th style={{ padding: '0.6rem' }}>Item Name</th>
                     <th style={{ padding: '0.6rem' }}>Category</th>
-                    <th style={{ padding: '0.6rem' }}>Lost Location</th>
-                    <th style={{ padding: '0.6rem' }}>Secret Attribute</th>
+                    <th style={{ padding: '0.6rem' }}>Location</th>
                     <th style={{ padding: '0.6rem' }}>Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {allLostReports.map((item) => (
+                  {allLostReports.map(item => (
                     <tr key={item.uuid} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
                       <td style={{ padding: '0.6rem', fontWeight: 700 }}>{item.item_name}</td>
                       <td style={{ padding: '0.6rem', color: 'var(--text-muted)' }}>{item.category}</td>
                       <td style={{ padding: '0.6rem' }}>{item.lost_location}</td>
-                      <td style={{ padding: '0.6rem', color: '#22d3ee' }}>{item.secret_attribute || 'N/A'}</td>
-                      <td style={{ padding: '0.6rem' }}>
-                        <span className={`badge ${item.status === 'RETURNED' ? 'badge-returned' : item.status === 'MATCHED' ? 'badge-matched' : 'badge-active'}`}>
-                          {item.status}
-                        </span>
-                      </td>
+                      <td style={{ padding: '0.6rem' }}><span className="badge badge-active">{item.status}</span></td>
                     </tr>
                   ))}
                 </tbody>
@@ -439,36 +642,28 @@ export default function AdminDashboard() {
                 <h3 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <ShieldCheck style={{ width: 22, height: 22 }} /> Campus Found Reports ({allFoundReports.length})
                 </h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Found item reports logged by finders and security officers</p>
               </div>
               <button onClick={() => setActiveModal(null)} className="btn btn-outline" style={{ padding: '0.3rem 0.6rem' }}>
                 <X style={{ width: 18, height: 18 }} />
               </button>
             </div>
-
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
                     <th style={{ padding: '0.6rem' }}>Item Name</th>
                     <th style={{ padding: '0.6rem' }}>Category</th>
-                    <th style={{ padding: '0.6rem' }}>Found Location</th>
-                    <th style={{ padding: '0.6rem' }}>Found Date</th>
+                    <th style={{ padding: '0.6rem' }}>Location</th>
                     <th style={{ padding: '0.6rem' }}>Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {allFoundReports.map((item) => (
+                  {allFoundReports.map(item => (
                     <tr key={item.uuid} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
                       <td style={{ padding: '0.6rem', fontWeight: 700 }}>{item.item_name}</td>
                       <td style={{ padding: '0.6rem', color: 'var(--text-muted)' }}>{item.category}</td>
                       <td style={{ padding: '0.6rem' }}>{item.found_location}</td>
-                      <td style={{ padding: '0.6rem', color: 'var(--text-dim)' }}>{item.found_date}</td>
-                      <td style={{ padding: '0.6rem' }}>
-                        <span className={`badge ${item.status === 'RETURNED' ? 'badge-returned' : item.status === 'MATCHED' ? 'badge-matched' : 'badge-active'}`}>
-                          {item.status}
-                        </span>
-                      </td>
+                      <td style={{ padding: '0.6rem' }}><span className="badge badge-active">{item.status}</span></td>
                     </tr>
                   ))}
                 </tbody>
@@ -477,6 +672,6 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
-    </div>
+    </PortalLayout>
   );
 }

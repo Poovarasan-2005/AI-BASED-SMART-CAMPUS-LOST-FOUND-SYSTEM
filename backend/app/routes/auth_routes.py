@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Request
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional, Dict, Any
 import uuid
 from datetime import datetime, timedelta
@@ -344,3 +344,132 @@ async def direct_verify_account(req: DirectVerifyRequest):
         {"$set": {"email_verified": True, "phone_verified": True, "account_status": "ACTIVE"}}
     )
     return {"message": f"Account '{email_clean}' has been verified! You can log in now."}
+
+class UpdateProfileRequest(BaseModel):
+    full_name: str
+    mobile: Optional[str] = ""
+    department: Optional[str] = ""
+    year: Optional[str] = ""
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+@router.get("/user/profile")
+async def get_user_profile(current_user: Dict[str, Any] = Depends(get_current_user)):
+    db = await get_database()
+    user = await db["users"].find_one({"uuid": current_user["uuid"]})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {
+        "user": {
+            "uuid": user["uuid"],
+            "full_name": user["full_name"],
+            "email": user["email"],
+            "role": user["role"],
+            "mobile": user.get("mobile") or user.get("phone_number", ""),
+            "phone_verified": user.get("phone_verified", True),
+            "department": user.get("department", ""),
+            "year": user.get("year", ""),
+            "email_verified": user.get("email_verified", True),
+            "created_at": user.get("created_at")
+        }
+    }
+
+@router.put("/user/profile")
+async def update_user_profile(
+    req: UpdateProfileRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    db = await get_database()
+    now_iso = datetime.utcnow().isoformat()
+    await db["users"].update_one(
+        {"uuid": current_user["uuid"]},
+        {"$set": {
+            "full_name": req.full_name,
+            "mobile": req.mobile,
+            "phone_number": req.mobile,
+            "department": req.department,
+            "year": req.year,
+            "updated_at": now_iso
+        }}
+    )
+    return {"message": "Profile updated successfully."}
+
+@router.post("/user/change-password")
+async def change_password(
+    req: ChangePasswordRequest,
+    request: Request,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    db = await get_database()
+    user = await db["users"].find_one({"uuid": current_user["uuid"]})
+    if not user or not verify_password(req.current_password, user.get("password_hash", "")):
+        raise HTTPException(status_code=400, detail="Current password is incorrect.")
+        
+    if len(req.new_password) < 6:
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters.")
+        
+    new_hash = hash_password(req.new_password)
+    now_iso = datetime.utcnow().isoformat()
+    await db["users"].update_one(
+        {"uuid": current_user["uuid"]},
+        {"$set": {"password_hash": new_hash, "updated_at": now_iso}}
+    )
+    
+    await log_security_event(
+        action="PASSWORD_CHANGED",
+        user_id=current_user["uuid"],
+        resource_type="USER",
+        resource_id=current_user["uuid"],
+        ip_address=request.client.host
+    )
+    return {"message": "Password changed successfully."}
+
+@router.post("/auth/forgot-password")
+async def forgot_password(req: ForgotPasswordRequest):
+    db = await get_database()
+    email_clean = req.email.lower().strip()
+    user = await db["users"].find_one({"email": email_clean})
+    if user:
+        reset_token = generate_secure_token()
+        exp = (datetime.utcnow() + timedelta(hours=2)).isoformat()
+        await db["password_resets"].insert_one({
+            "id": str(uuid.uuid4()),
+            "user_id": user["uuid"],
+            "token": reset_token,
+            "expires_at": exp,
+            "used": False
+        })
+        # Try to send email
+        try:
+            await EmailService.send_password_reset_email(email_clean, reset_token)
+        except Exception:
+            pass
+    return {"message": "If an account with that email exists, a password reset link has been dispatched."}
+
+@router.post("/auth/reset-password")
+async def reset_password(req: ResetPasswordRequest):
+    db = await get_database()
+    doc = await db["password_resets"].find_one({"token": req.token, "used": False})
+    if not doc:
+        raise HTTPException(status_code=400, detail="Invalid or expired password reset token.")
+        
+    if len(req.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
+        
+    new_hash = hash_password(req.new_password)
+    await db["users"].update_one(
+        {"uuid": doc["user_id"]},
+        {"$set": {"password_hash": new_hash, "updated_at": datetime.utcnow().isoformat()}}
+    )
+    await db["password_resets"].update_one({"_id": doc["_id"]}, {"$set": {"used": True}})
+    return {"message": "Password has been reset successfully. You may now log in with your new password."}

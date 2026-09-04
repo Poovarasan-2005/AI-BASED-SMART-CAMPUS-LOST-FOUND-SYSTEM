@@ -1,7 +1,9 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import uuid
+import os
 from datetime import datetime
 from app.config import settings
 from app.database.db import get_database
@@ -14,6 +16,11 @@ from app.routes.verification_routes import router as verification_router
 from app.routes.recovery_routes import router as recovery_router
 from app.routes.admin_routes import router as admin_router
 from app.routes.conversation_routes import router as conversation_router
+from app.routes.notification_routes import router as notification_router
+
+# Ensure upload directory exists
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -63,6 +70,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount static uploads directory for serving uploaded item photos
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+
 # Include Routers
 app.include_router(auth_router)
 app.include_router(lost_router)
@@ -72,6 +82,7 @@ app.include_router(verification_router)
 app.include_router(recovery_router)
 app.include_router(admin_router)
 app.include_router(conversation_router)
+app.include_router(notification_router)
 
 @app.get("/")
 async def root():
