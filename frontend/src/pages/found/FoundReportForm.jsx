@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiFetch } from '../../services/api';
+import { apiFetch, uploadImage } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import PortalLayout from '../../components/PortalLayout';
 import {
@@ -69,17 +69,7 @@ export default function FoundReportForm() {
     data.append('file', file);
 
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/ai/upload-image', {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: data
-      });
-      const result = await res.json();
-
-      if (!res.ok) {
-        throw new Error(result.detail || 'Image validation failed.');
-      }
+      const result = await uploadImage(file);
 
       if (result.success) {
         setFormData(prev => ({ ...prev, image_url: result.image_url }));

@@ -1,108 +1,70 @@
-# Smart Campus Lost & Found System
+# AI-Based Smart Campus Lost & Found System
+## 100% Serverless Web Application Powered by Google Firebase
 
-## Secure AI-Based Smart Campus Lost & Found System with Dual Login, Multimodal AI Matching, Email OTP and Secure Recovery
-
-An end-to-end, production-grade **Smart Campus Lost & Found Platform** combining dual-user authentication, OpenCV visual image analysis, multimodal weighted AI matching, 6-digit cryptographic OTP verification, secret attribute ownership checks, temporary single-use QR handovers, and admin analytics.
+An enterprise-grade, production-ready **Smart Campus Lost & Found Platform** built with **React, Vite, and Cloud Firebase**. The system features real-time NoSQL synchronization via Cloud Firestore, Firebase Authentication (Email/Password & Google OAuth), Cloud Storage image uploads, client-side Multimodal AI Matching, Mobile OTP verification, and private in-app recovery conversations (`Sent ✓`, `Delivered ✓✓`, `Seen ✓✓`).
 
 ---
 
-## 🌟 Key Features
+## 🌟 Key Architecture Highlights
 
-### 1. Dual Authentication & Role Isolation
-- **Lost User Portal** (`/lost/login`): Report lost items, review incoming verification requests, request 6-digit OTPs, and complete ownership checks.
-- **Found User Portal** (`/found/login`): Report found items, run AI similarity matching, and request verification against potential lost matches.
-- **Admin Moderation Portal** (`/admin/login`): View campus location analytics, monitor security audit trails, and suspend/activate accounts.
-- **Deny-by-Default Security**: Backend verifies resource ownership on every protected API endpoint to prevent IDOR / BOLA attacks.
-
-### 2. Multimodal AI Matching & Explainable AI
-- **Image Quality Check**: Uses OpenCV Laplacian variance to detect blurry, dark, or low-resolution uploads.
-- **Weighted Multimodal Engine**:
-  - Image Similarity (40%)
-  - Text NLP Description Similarity (20%)
-  - Distinctive Features / Color (15%)
-  - Campus Location Proximity (10%)
-  - Date Proximity (5%)
-  - Time Proximity (5%)
-  - Category / Brand (5%)
-- **Explainable AI**: Displays matching reasons (e.g., `✓ Same category`, `✓ Matching brand`, `✓ Nearby location`).
-- **AI Natural Language Search**: Converts conversational queries ("I lost my black bag near the library yesterday") into structured search attributes.
-
-### 3. Critical Dual-User Verification & OTP Security
-- Found User creates a verification request on a potential match.
-- Backend retrieves the Lost User's verified email address (never provided by the Found User).
-- Sends email alert to Lost User.
-- Lost User logs in -> requests 6-digit OTP -> system generates cryptographic random OTP hashed with SHA-256 (5-minute expiry, max 5 attempts).
-- OTP validated -> Single-use invalidation.
-- Lost User confirms private secret attribute -> Approves verification.
-- System issues temporary single-use Handover QR Code.
-- Handover confirmed -> Status updated to `RETURNED` -> Digital Recovery Receipt issued.
+- **100% Serverless**: No Python, Django, or external backend server required. Runs directly in modern browsers against Google Cloud Firebase.
+- **Direct Cloud Firestore Integration**: All 10 collections (`users`, `lostItems`, `foundItems`, `matches`, `verificationRequests`, `conversations`, `messages`, `notifications`, `auditLogs`, `reports`) are managed in Firestore.
+- **Client-Side Multimodal AI Engine**: Client-side semantic weighting algorithm evaluating category, brand, color, serial numbers, locations, dates, and visual tags.
+- **Real-Time Private Chat**: Synchronized via Firestore snapshots with read receipts and double-confirmation handovers.
+- **Cloud Storage**: Instant photo uploads with validation and automatic fallbacks.
 
 ---
 
 ## 🛠️ Technology Stack
 
-- **Frontend**: React.js, Vite, Vanilla CSS Design System (Glassmorphism, gradients, micro-animations), Lucide Icons.
-- **Backend**: Python 3.10+, FastAPI, PyMongo / Motor async driver, Passlib (Bcrypt), Python-JOSE (JWT).
-- **AI/ML**: OpenCV (`cv2`), NumPy, Scikit-learn (TF-IDF & Cosine Similarity), Pillow, QRCode.
-- **Database**: MongoDB (Atlas or local instance, with automatic in-memory fallback for local development).
+| Layer | Technology |
+| :--- | :--- |
+| **Frontend Framework** | React 18, Vite 4, React Router 6 |
+| **Styling & Icons** | Glassmorphism Vanilla CSS Design System, Lucide React Icons |
+| **Database** | Google Cloud Firestore (NoSQL Document Store) |
+| **Authentication** | Firebase Authentication (Email/Password, Google OAuth) |
+| **Media Storage** | Google Cloud Storage for Firebase |
+| **Push Notifications** | Firebase Cloud Messaging (FCM) |
+| **Security Rules** | Declarative Role-Based Access Control (`firestore.rules`, `storage.rules`) |
+| **AI Matching** | Client-Side Multimodal AI Engine (`src/services/aiMatcher.js`) |
 
 ---
 
-## 🚀 Quick Setup & Execution Guide
+## 🚀 Quick Start Guide
 
-### 1. Environment Setup
-Clone the repository and copy the environment template:
-```bash
-cp .env.example .env
-```
-
-### 2. Backend Installation & Start
-Navigate to the root workspace and install Python dependencies:
-```bash
-pip install -r backend/requirements.txt
-```
-
-Run the backend server:
-```bash
-python -m uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port 8000 --reload
-```
-The API documentation will be available at `http://localhost:8000/docs`.
-
-### 3. Load Demo Seed Data
-In a separate terminal, seed demo accounts and sample lost/found reports:
-```bash
-python seed_demo.py
-```
-
-### 4. Frontend Installation & Start
-Install Node dependencies and start Vite dev server:
-```bash
+### 1. Install Frontend Dependencies
+```powershell
 cd frontend
 npm install
+```
+
+### 2. (Optional) Re-Seed Live Firestore Collections
+To populate your Firebase Console with rich demo data across all 10 collections:
+```powershell
+cd frontend
+node seed_firestore_live.js
+```
+
+### 3. Run Development Server
+```powershell
+cd frontend
 npm run dev
 ```
-Open `http://localhost:3000` in your browser.
+Open **[http://localhost:3000](http://localhost:3000)** in your browser.
 
----
-
-## 🔐 Pre-configured Demo Accounts
-
-| Portal | Email | Password | Role |
-| :--- | :--- | :--- | :--- |
-| **Lost User Portal** | `lost.user@campus.edu` | `LostPass123!` | `LOST_USER` |
-| **Found User Portal** | `found.user@campus.edu` | `FoundPass123!` | `FOUND_USER` |
-| **Admin Portal** | `admin@campuslostfound.edu` | `AdminPass123!` | `ADMIN` |
-
----
-
-## 🧪 Security & Verification Testing
-
-Run the automated pytest test suite to verify role enforcement, IDOR protection, OTP security, and AI match scoring:
-```bash
-pytest tests/test_security_and_flow.py -v
+### 4. Build for Production
+```powershell
+cd frontend
+npm run build
 ```
 
 ---
 
-## 📄 License & System Authority
-Campus Lost & Found System © 2026. Built with security, transparency, and explainable AI.
+## 📚 Complete Project Documentation
+
+- 📋 [**FIRESTORE_COLLECTIONS_FORMAT.md**](file:///c:/Users/LENOVO/Music/AI-BASED%20SMART%20CAMPUS%20LOST%20&%20FOUND%20SYSTEM/FIRESTORE_COLLECTIONS_FORMAT.md): Exact JSON schemas and data dictionary for all collections.
+- 🏗️ [**FIREBASE_ARCHITECTURE.md**](file:///c:/Users/LENOVO/Music/AI-BASED%20SMART%20CAMPUS%20LOST%20&%20FOUND%20SYSTEM/FIREBASE_ARCHITECTURE.md): Serverless architecture and sequence data flows.
+- 🗄️ [**DATABASE_SCHEMA.md**](file:///c:/Users/LENOVO/Music/AI-BASED%20SMART%20CAMPUS%20LOST%20&%20FOUND%20SYSTEM/DATABASE_SCHEMA.md): Complete Firestore schema definitions.
+- 🔥 [**FIREBASE_SETUP_GUIDE.md**](file:///c:/Users/LENOVO/Music/AI-BASED%20SMART%20CAMPUS%20LOST%20&%20FOUND%20SYSTEM/FIREBASE_SETUP_GUIDE.md): Firebase Console setup and CLI deployment guide.
+- 🛡️ [**SECURITY.md**](file:///c:/Users/LENOVO/Music/AI-BASED%20SMART%20CAMPUS%20LOST%20&%20FOUND%20SYSTEM/SECURITY.md): Firebase Security Rules and RBAC specifications.
+- 🚀 [**DEPLOYMENT.md**](file:///c:/Users/LENOVO/Music/AI-BASED%20SMART%20CAMPUS%20LOST%20&%20FOUND%20SYSTEM/DEPLOYMENT.md): Firebase Hosting deployment instructions.
